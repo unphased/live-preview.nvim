@@ -92,6 +92,17 @@ async function connectWebSocket() {
 					closest.scrollIntoView({ behavior: "smooth", block: "center" });
 				}
 			}
+		} else if (message.type === "vim_status") {
+			console.log("Vim status message received");
+			const { filepath, cursor, mode } = message;
+			if (isRightPath(filepath)) {
+				const statusElement = document.getElementById("vim-status-indicator");
+				if (statusElement) {
+					statusElement.textContent = `Mode: ${mode} | Pos: ${cursor[0]}:${cursor[1]}`;
+				} else {
+					console.warn("vim-status-indicator element not found.");
+				}
+			}
 		}
 	};
 
