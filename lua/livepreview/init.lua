@@ -53,41 +53,37 @@ function M.start(filepath, port)
 	M.close()
 
 	M.serverObj = server.Server:new(config.config.dynamic_root and vim.fs.dirname(filepath) or nil)
-	vim.wait(50, function()
-		local function onTextChanged(client)
-			local bufname = vim.api.nvim_buf_get_name(0)
-			if not utils.supported_filetype(bufname) or utils.supported_filetype(bufname) == "html" then
-				return
-			end
-			local message = {
-				filepath = bufname,
-				type = "update",
-				content = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n"),
-			}
-			server.websocket.send_json(client, message)
+	local function onTextChanged(client)
+		local bufname = vim.api.nvim_buf_get_name(0)
+		if not utils.supported_filetype(bufname) or utils.supported_filetype(bufname) == "html" then
+			return
 		end
+		local message = {
+			filepath = bufname,
+			type = "update",
+			content = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n"),
+		}
+		server.websocket.send_json(client, message)
+	end
 
-		M.serverObj:start("127.0.0.1", port, {
-			on_events = utils.supported_filetype(filepath) == "html"
-					and {
-						---@param client uv_tcp_t
-						---@param data {filename: string, event: FsEvent}
-						LivePreviewDirChanged = function(client, data)
-							if not vim.regex([[\.\(html\|css\|js\)$]]):match_str(data.filename) then
-								return
-							end
+	M.serverObj:start(config.config.address, port, {
+		on_events = utils.supported_filetype(filepath) == "html"
+				and {
+					---@param client uv_tcp_t
+					---@param data {filename: string, event: FsEvent}
+					LivePreviewDirChanged = function(client, data)
+						if not vim.regex([[\.\(html\|css\|js\)$]]):match_str(data.filename) then
+							return
+						end
 
-							server.websocket.send_json(client, { type = "reload" })
-						end,
-					}
-				or {
-					TextChanged = vim.schedule_wrap(onTextChanged),
-					TextChangedI = vim.schedule_wrap(onTextChanged),
-				},
-		})
-
-		return true
-	end, 98)
+						server.websocket.send_json(client, { type = "reload" })
+					end,
+				}
+			or {
+				TextChanged = vim.schedule_wrap(onTextChanged),
+				TextChangedI = vim.schedule_wrap(onTextChanged),
+			},
+	})
 
 	return true
 end
@@ -96,12 +92,17 @@ function M.pick()
 	local picker = require("livepreview.picker")
 
 	local pick_callback = function(pick_value)
-		local filepath = pick_value
+		local filepath = pick_value or nil
+		if not filepath then
+			vim.notify("No file picked", vim.log.levels.INFO)
+			return
+		end
 		M.start(filepath, config.config.port)
 		vim.cmd.edit(filepath)
 		utils.open_browser(
 			string.format(
-				"http://localhost:%d/%s",
+				"http://%s:%d/%s",
+				config.config.address,
 				config.config.port,
 				config.config.dynamic_root and vim.fs.basename(filepath) or filepath
 			),

@@ -58,11 +58,10 @@ api.nvim_create_user_command(cmd, function(cmd_opts)
 			return
 		end
 
-		local urlpath = (Config.dynamic_root and fs.basename(filepath) or utils.get_relative_path(
-			filepath,
-			fs.normalize(vim.uv.cwd() or "")
-		)):gsub(" ", "%%20")
-		local url = ("http://localhost:%d/%s"):format(Config.port, urlpath)
+		local urlpath = Config.dynamic_root and fs.basename(filepath)
+			or utils.get_relative_path(filepath, fs.normalize(vim.uv.cwd() or ""))
+		local urlpath_encoded = urlpath and vim.uri_encode(urlpath)
+		local url = ("http://%s:%d/%s"):format(Config.address, Config.port, urlpath_encoded)
 		print("live-preview.nvim: Opening browser at " .. url)
 		utils.open_browser(url, Config.browser)
 	elseif subcommand == "close" then
@@ -94,9 +93,8 @@ end, {
 
 local config = require("livepreview.config")
 --- Public API
-LivePreview = {
-	config = vim.deepcopy(config.default),
-}
+LivePreview = {}
+LivePreview.config = vim.deepcopy(config.default)
 
 setmetatable(LivePreview.config, {
 	__index = function(_, key)

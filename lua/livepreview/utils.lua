@@ -34,6 +34,7 @@ end
 ---@param file_name string
 ---@return string|nil
 function M.supported_filetype(file_name)
+	file_name = file_name or ""
 	if file_name:match("%.html$") then
 		return "html"
 	elseif file_name:match("%.md$") or file_name:match("%.markdown$") then
@@ -67,11 +68,11 @@ function M.list_supported_files(directory)
 	directory = vim.fn.fnamemodify(directory, ":p")
 	local files = vim.fs.find(function(name, _)
 		return not not M.supported_filetype(name)
-	end, { limit = math.huge, type = "file" })
-	for i, file in ipairs(files) do
-		files[i] = M.get_relative_path(file, directory)
-	end
-	return files
+	end, { path = directory, limit = math.huge, type = "file" }) or {}
+	local relative_paths = vim.tbl_map(function(file)
+		return file and M.get_relative_path(file, directory) or nil
+	end, files)
+	return relative_paths
 end
 
 --- Get the path where live-preview.nvim is installed
@@ -271,7 +272,7 @@ function M.open_browser(path, browser)
 	if browser == "default" or browser == nil or #browser == 0 then
 		vim.ui.open(path)
 	else
-		M.term_cmd(browser .. " " .. path)
+		M.term_cmd(browser .. " " .. vim.fn.shellescape(path))
 	end
 end
 
@@ -283,10 +284,10 @@ function M.processes_listening_on_port(port)
 	if vim.uv.os_uname().version:match("Windows") then
 		cmd = ([[
 			Get-NetTCPConnection -LocalPort %d | Where-Object { $_.State -eq 'Listen' } | ForEach-Object {
-				$pid = $_.OwningProcess
-				$process = Get-Process -Id $pid -ErrorAction SilentlyContinue
+				$procID = $_.OwningProcess
+				$process = Get-Process -Id $procID -ErrorAction SilentlyContinue
 				if ($process) {
-					$process.Name + " " + $pid
+					$process.Name + " " + $procID
 				}
 			}
 			]]):format(port)

@@ -9,14 +9,31 @@ function getWebSocketUrl() {
 	return `${protocol}//${hostname}${port}`;
 }
 
-/** 
+/**
+ * Normalize Windows file path to use forward slashes
+ * @param {string} filepath - The file path to normalize
+ * @returns {string} - The normalized file path
+ */
+const normalizePath = (filepath) => {
+    if (!filepath) return '';
+
+    const isWindows = /^[a-zA-Z]:\\/.test(filepath) ||
+                      filepath.startsWith('\\\\');
+
+    return isWindows ? filepath.replace(/\\/g, '/') : filepath;
+};
+
+/**
  * Check if browser should handle websocket message from server
  * @param {string} filepath - The path of the file
  * @returns {boolean} - True if the browser should handle the message, false otherwise
  */
 const isRightPath = (filepath) => {
-	return filepath.includes(window.location.pathname.replace(/%20/g, " "));
-}
+	const decodedPath = decodeURIComponent(window.location.pathname)
+	console.log("Checking path:", filepath, "against", decodedPath);
+    const normalized = normalizePath(filepath);
+    return normalized.endsWith(decodedPath);
+};
 
 let livepreview_reload
 
