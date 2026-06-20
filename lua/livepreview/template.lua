@@ -38,6 +38,7 @@ local html_template = function(body, stylesheet, script_tag)
 				.katex .array{border-collapse:collapse}
 				.katex .array>tbody>tr>td{padding:0}
 				.katex .delimsizing{font-family:KaTeX_Size1,KaTeX_Size2,KaTeX_Size3,KaTeX_Size4,serif}
+				.livepreview-active-source-line{outline:2px solid #f59e0b;outline-offset:3px;background:rgba(245,158,11,.12);transition:background-color .12s ease,outline-color .12s ease}
 			</style>
 ]] .. script_tag .. [[
 			<script defer src='/live-preview.nvim/static/ws-client.js'></script>

@@ -10,7 +10,7 @@ live-preview.nvim is a plugin for Neovim that allows you to view [Markdown](http
 * Preview HTML (with CSS and JavaScript) with live updates as you save the file
 * Supports KaTeX and Mermaid for rendering math equations and diagrams in Markdown and AsciiDoc files
 * Syntax highlighting for code blocks in Markdown and AsciiDoc 🖍️
-* Supports sync scrolling in the browser as you scroll in the Markdown files in Neovim. 
+* Supports sync scrolling and highlights the current rendered block in the browser as you move through Markdown files in Neovim.
 * Integration with [`telescope.nvim`](https://github.com/nvim-telescope/telescope.nvim) 🔭, [`fzf-lua`](https://github.com/ibhagwan/fzf-lua), [`mini.pick`](https://github.com/echasnovski/mini.pick) and `vim.ui.select` meaning pickers like [`snacks.nvim`](https://gothub.com/folke/snacks.nvim) is supported
 
 # Updates :loudspeaker:
