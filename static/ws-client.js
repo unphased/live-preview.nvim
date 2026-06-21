@@ -36,6 +36,51 @@ const isRightPath = (filepath) => {
 };
 
 let livepreview_reload
+let livepreviewActiveSourceLine = null;
+let livepreviewLastCursor = null;
+
+const findClosestSourceLine = (cursor) => {
+	const cursorLine = Number(cursor?.[0]);
+	if (!Number.isFinite(cursorLine)) return null;
+
+	const sourceLine = Math.max(cursorLine - 1, 0);
+	const exactLine = document.querySelector(`[data-source-line="${sourceLine}"]`);
+	if (exactLine) return exactLine;
+
+	const lineNumbers = document.querySelectorAll(".source-line[data-source-line]");
+	let closest = null;
+	let minDiff = Infinity;
+	lineNumbers.forEach((lineNumber) => {
+		const line = parseInt(lineNumber.getAttribute("data-source-line"), 10);
+		if (!Number.isFinite(line)) return;
+
+		const diff = Math.abs(sourceLine - line);
+		if (diff < minDiff) {
+			minDiff = diff;
+			closest = lineNumber;
+		}
+	});
+
+	return closest;
+};
+
+const setActiveSourceLine = (line) => {
+	if (livepreviewActiveSourceLine && livepreviewActiveSourceLine !== line) {
+		livepreviewActiveSourceLine.classList.remove("livepreview-active-source-line");
+	}
+
+	livepreviewActiveSourceLine = line;
+	if (livepreviewActiveSourceLine) {
+		livepreviewActiveSourceLine.classList.add("livepreview-active-source-line");
+	}
+};
+
+const refreshActiveSourceLine = () => {
+	if (!livepreviewLastCursor) return;
+
+	const line = findClosestSourceLine(livepreviewLastCursor);
+	setActiveSourceLine(line);
+};
 
 async function connectWebSocket() {
 	socket = new WebSocket(wsUrl);
@@ -74,6 +119,7 @@ async function connectWebSocket() {
 				// Check if the render function is defined before calling it
 				if (typeof livepreview_render !== "undefined") {
 					livepreview_render(content);
+					refreshActiveSourceLine();
 					if (typeof livepreview_renderKatex !== "undefined") {
 						livepreview_renderKatex();
 					}
@@ -87,6 +133,7 @@ async function connectWebSocket() {
 							document.querySelector('.markdown-body').innerHTML = text;
 						}
 						livepreview_render(content);
+						refreshActiveSourceLine();
 					}
 					else {
 						console.error("livepreview_render function is not defined");
@@ -97,22 +144,11 @@ async function connectWebSocket() {
 			console.log("Scroll message received");
 			const { filepath, cursor } = message;
 			if (isRightPath(filepath)) {
-				const line = document.querySelector(`[data-source-line="${cursor[0]}"]`);
+				livepreviewLastCursor = cursor;
+				const line = findClosestSourceLine(cursor);
+				setActiveSourceLine(line);
 				if (line) {
 					line.scrollIntoView({ behavior: "smooth", block: "center" });
-				} else {
-					// Find the closest line number
-					const lineNumbers = document.querySelectorAll(".source-line");
-					let closest = lineNumbers[0];
-					let minDiff = Math.abs(cursor[0] - parseInt(closest.getAttribute("data-source-line")));
-					lineNumbers.forEach((lineNumber) => {
-						const diff = Math.abs(cursor[0] - parseInt(lineNumber.getAttribute("data-source-line")));
-						if (diff < minDiff) {
-							minDiff = diff;
-							closest = lineNumber;
-						}
-					});
-					closest.scrollIntoView({ behavior: "smooth", block: "center" });
 				}
 			}
 		}
