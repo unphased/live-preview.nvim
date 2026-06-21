@@ -163,16 +163,9 @@ See [TODO](https://github.com/brianhuster/live-preview.nvim/milestone/1)
 * [mermaid-js/mermaid](https://github.com/mermaid-js/mermaid) for rendering diagrams
 * [digitalmoksha/markdown-it-inject-linenumbers](https://github.com/digitalmoksha/markdown-it-inject-linenumbers) : A markdown-it plugin for injecting line numbers into html output
 
-# Buy me a coffee ☕
+# Original plugin author
 
-Maintaining this project takes time and effort, especially as I am a student now. If you find this project helpful, please consider supporting me :>
-
-<a href="https://paypal.me/brianphambinhan">
-    <img src="https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_111x69.jpg" alt="Paypal" style="height: 69px;">
-</a>
-<a href="https://img.vietqr.io/image/mb-9704229209586831984-print.png?addInfo=Donate%20for%20livepreview%20plugin%20nvim&accountName=PHAM%20BINH%20AN">
-    <img src="https://github.com/user-attachments/assets/f28049dc-ce7c-4975-a85e-be36612fd061" alt="VietQR" style="height: 85px;">
-</a>
+The original repo of live-preview can be found here: https://github.com/brianhuster/live-preview.nvim
 
 # Alternatives
 
