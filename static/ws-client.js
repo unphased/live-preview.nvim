@@ -38,6 +38,62 @@ const isRightPath = (filepath) => {
 let livepreview_reload
 let livepreviewActiveSourceLine = null;
 let livepreviewLastCursor = null;
+let livepreviewScrollTarget = null;
+let livepreviewScrollFrame = null;
+let livepreviewScrollLastFrame = null;
+
+const LIVEPREVIEW_SCROLL_TIME_CONSTANT_MS = 100;
+const LIVEPREVIEW_SCROLL_THRESHOLD_PX = 0.5;
+
+const animateScroll = (timestamp) => {
+	const scrollElement = document.scrollingElement;
+	if (!scrollElement || livepreviewScrollTarget === null) {
+		livepreviewScrollFrame = null;
+		livepreviewScrollLastFrame = null;
+		return;
+	}
+
+	const maxScrollTop = Math.max(
+		scrollElement.scrollHeight - scrollElement.clientHeight,
+		0,
+	);
+	const target = Math.min(Math.max(livepreviewScrollTarget, 0), maxScrollTop);
+	const delta = target - scrollElement.scrollTop;
+
+	if (Math.abs(delta) <= LIVEPREVIEW_SCROLL_THRESHOLD_PX) {
+		scrollElement.scrollTop = target;
+		livepreviewScrollFrame = null;
+		livepreviewScrollLastFrame = null;
+		return;
+	}
+
+	const elapsed = timestamp - livepreviewScrollLastFrame;
+	const progress = 1 - Math.exp(-elapsed / LIVEPREVIEW_SCROLL_TIME_CONSTANT_MS);
+	scrollElement.scrollTop += delta * progress;
+	livepreviewScrollLastFrame = timestamp;
+	livepreviewScrollFrame = requestAnimationFrame(animateScroll);
+};
+
+const scrollToSourceLine = (line) => {
+	const scrollElement = document.scrollingElement;
+	if (!scrollElement) return;
+
+	const bounds = line.getBoundingClientRect();
+	livepreviewScrollTarget =
+		scrollElement.scrollTop +
+		bounds.top +
+		bounds.height / 2 -
+		scrollElement.clientHeight / 2;
+
+	if (
+		livepreviewScrollFrame === null &&
+		Math.abs(livepreviewScrollTarget - scrollElement.scrollTop) >
+			LIVEPREVIEW_SCROLL_THRESHOLD_PX
+	) {
+		livepreviewScrollLastFrame = performance.now();
+		livepreviewScrollFrame = requestAnimationFrame(animateScroll);
+	}
+};
 
 const findClosestSourceLine = (cursor) => {
 	const cursorLine = Number(cursor?.[0]);
@@ -148,7 +204,7 @@ async function connectWebSocket() {
 				const line = findClosestSourceLine(cursor);
 				setActiveSourceLine(line);
 				if (line) {
-					line.scrollIntoView({ behavior: "smooth", block: "center" });
+					scrollToSourceLine(line);
 				}
 			}
 		}
