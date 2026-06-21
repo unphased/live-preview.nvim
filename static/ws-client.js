@@ -44,12 +44,37 @@ let livepreviewScrollLastFrame = null;
 
 const LIVEPREVIEW_SCROLL_TIME_CONSTANT_MS = 100;
 const LIVEPREVIEW_SCROLL_THRESHOLD_PX = 1;
+const LIVEPREVIEW_SCROLL_ABORT_EVENTS = [
+	"wheel",
+	"touchstart",
+	"pointerdown",
+	"keydown",
+];
 
 const stopSmoothScrollTargeting = () => {
+	if (livepreviewScrollFrame !== null) {
+		cancelAnimationFrame(livepreviewScrollFrame);
+	}
 	livepreviewScrollTarget = null;
 	livepreviewScrollFrame = null;
 	livepreviewScrollLastFrame = null;
 };
+
+const abortSmoothScrollOnUserInteraction = (event) => {
+	if (livepreviewScrollTarget === null && livepreviewScrollFrame === null) return;
+
+	console.log("Smooth scroll aborted by user interaction", {
+		type: event.type,
+	});
+	stopSmoothScrollTargeting();
+};
+
+LIVEPREVIEW_SCROLL_ABORT_EVENTS.forEach((eventName) => {
+	window.addEventListener(eventName, abortSmoothScrollOnUserInteraction, {
+		capture: true,
+		passive: true,
+	});
+});
 
 const animateScroll = (timestamp) => {
 	const scrollElement = document.scrollingElement;
