@@ -113,10 +113,7 @@ function M.navigate(filepath)
 		return false
 	end
 	if not can_serve(filepath) then
-		vim.notify(
-			"live-preview.nvim: cannot follow a file outside the current preview root",
-			vim.log.levels.WARN
-		)
+		vim.notify("live-preview.nvim: cannot follow a file outside the current preview root", vim.log.levels.WARN)
 		return false
 	end
 
@@ -213,10 +210,7 @@ function M.follow(filepath, port)
 		return
 	end
 	if M.is_running() and not can_serve(filepath) then
-		vim.notify(
-			"live-preview.nvim: cannot follow a file outside the current preview root",
-			vim.log.levels.WARN
-		)
+		vim.notify("live-preview.nvim: cannot follow a file outside the current preview root", vim.log.levels.WARN)
 		return
 	end
 
@@ -290,7 +284,9 @@ function M.help()
 	)
 	print_help([[  :%s close - Stop live-preview server]])
 	print_help([[  :%s pick - Select a file to preview (using a picker like telescope.nvim, fzf-lua or mini.pick)]])
-	print_help([[  :%s follow [filepath] - Preview a file and navigate the browser as you enter other supported buffers.]])
+	print_help(
+		[[  :%s follow [filepath] - Preview a file and navigate the browser as you enter other supported buffers.]]
+	)
 	print("  :che[ckhealth] livepreview - Check the health of the plugin")
 	print("  :h[elp] livepreview - Open the documentation")
 end
