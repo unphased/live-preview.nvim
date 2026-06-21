@@ -4,12 +4,23 @@ local cmd = "LivePreview"
 local server = require("livepreview.server")
 local utils = require("livepreview.utils")
 local config = require("livepreview.config")
+local api = vim.api
 
 ---@type LivePreviewServer?
 M.serverObj = nil
+M.following = false
+
+local follow_augroup = "LivePreviewFollow"
+
+--- Stop following the active buffer
+function M.disable_follow()
+	M.following = false
+	pcall(api.nvim_del_augroup_by_name, follow_augroup)
+end
 
 --- Stop live-preview server
 function M.close()
+	M.disable_follow()
 	if M.serverObj then
 		M.serverObj:stop(function()
 			print("live-preview.nvim: Server closed")
@@ -25,11 +36,113 @@ function M.is_running()
 	return not not (M.serverObj and M.serverObj.server)
 end
 
+--- Resolve the file to preview
+---@param filepath string|nil
+---@return string?
+function M.resolve_filepath(filepath)
+	if filepath and #filepath > 0 then
+		if not utils.is_absolute_path(filepath) then
+			filepath = vim.fs.joinpath(vim.uv.cwd(), filepath)
+		end
+	else
+		filepath = api.nvim_buf_get_name(0)
+		if not utils.supported_filetype(filepath) then
+			filepath = utils.find_supported_buf()
+		end
+	end
+
+	return filepath and vim.fs.normalize(filepath) or nil
+end
+
+---@param filepath string
+---@return string
+local function preview_root(filepath)
+	if M.serverObj then
+		return vim.fs.normalize(M.serverObj.webroot)
+	end
+
+	return config.config.dynamic_root and vim.fs.dirname(filepath) or vim.fs.normalize(vim.uv.cwd() or "")
+end
+
+--- Get the browser path for a preview file
+---@param filepath string
+---@return string?
+function M.preview_path(filepath)
+	filepath = vim.fs.normalize(filepath)
+	local urlpath = utils.get_relative_path(filepath, preview_root(filepath))
+
+	if not urlpath then
+		return
+	end
+
+	return "/" .. vim.uri_encode(urlpath)
+end
+
+--- Get the browser URL for a preview file
+---@param filepath string
+---@param port number?
+---@return string?
+function M.preview_url(filepath, port)
+	local path = M.preview_path(filepath)
+	if not path then
+		return
+	end
+
+	return ("http://%s:%d%s"):format(config.config.address, port or config.config.port, path)
+end
+
+---@param filepath string
+---@return boolean
+local function can_serve(filepath)
+	if not M.serverObj then
+		return false
+	end
+
+	local webroot = vim.fs.normalize(M.serverObj.webroot)
+	return not not utils.get_relative_path(filepath, webroot)
+end
+
+--- Navigate connected browsers to a preview file
+---@param filepath string
+---@return boolean
+function M.navigate(filepath)
+	if not M.is_running() then
+		return false
+	end
+	if not utils.supported_filetype(filepath) then
+		return false
+	end
+	if not can_serve(filepath) then
+		vim.notify(
+			"live-preview.nvim: cannot follow a file outside the current preview root",
+			vim.log.levels.WARN
+		)
+		return false
+	end
+
+	local path = M.preview_path(filepath)
+	if not path then
+		return false
+	end
+
+	for _, client in ipairs(server.connecting_clients) do
+		server.websocket.send_json(client, {
+			type = "navigate",
+			path = path,
+		})
+	end
+
+	return true
+end
+
 --- Start live-preview server
 ---@param filepath string: path to the file
 ---@param port number: port to run the server on
+---@param opts? {watch_dir?: boolean}
 ---@return boolean?
-function M.start(filepath, port)
+function M.start(filepath, port, opts)
+	filepath = vim.fs.normalize(filepath)
+	opts = opts or {}
 	local processes = utils.processes_listening_on_port(port)
 	if #processes > 0 then
 		for _, process in ipairs(processes) do
@@ -66,25 +179,65 @@ function M.start(filepath, port)
 		server.websocket.send_json(client, message)
 	end
 
-	M.serverObj:start(config.config.address, port, {
-		on_events = utils.supported_filetype(filepath) == "html"
-				and {
-					---@param client uv_tcp_t
-					---@param data {filename: string, event: FsEvent}
-					LivePreviewDirChanged = function(client, data)
-						if not vim.regex([[\.\(html\|css\|js\)$]]):match_str(data.filename) then
-							return
-						end
+	local on_events = {
+		TextChanged = vim.schedule_wrap(onTextChanged),
+		TextChangedI = vim.schedule_wrap(onTextChanged),
+	}
+	if opts.watch_dir or utils.supported_filetype(filepath) == "html" then
+		---@param client uv_tcp_t
+		---@param data {filename: string, event: FsEvent}
+		on_events.LivePreviewDirChanged = function(client, data)
+			if not vim.regex([[\.\(html\|css\|js\)$]]):match_str(data.filename) then
+				return
+			end
 
-						server.websocket.send_json(client, { type = "reload" })
-					end,
-				}
-			or {
-				TextChanged = vim.schedule_wrap(onTextChanged),
-				TextChangedI = vim.schedule_wrap(onTextChanged),
-			},
+			server.websocket.send_json(client, { type = "reload" })
+		end
+	end
+
+	M.serverObj:start(config.config.address, port, {
+		on_events = on_events,
 	})
 
+	return true
+end
+
+--- Start following the active buffer in connected browsers
+---@param filepath string?
+---@param port number
+---@return boolean?
+function M.follow(filepath, port)
+	filepath = M.resolve_filepath(filepath)
+	if not filepath or not utils.supported_filetype(filepath) then
+		vim.notify("live-preview.nvim only supports markdown, asciidoc, svg and html files", vim.log.levels.ERROR)
+		return
+	end
+	if M.is_running() and not can_serve(filepath) then
+		vim.notify(
+			"live-preview.nvim: cannot follow a file outside the current preview root",
+			vim.log.levels.WARN
+		)
+		return
+	end
+
+	if not M.is_running() and not M.start(filepath, port, { watch_dir = true }) then
+		return
+	end
+
+	M.disable_follow()
+	M.following = true
+	api.nvim_create_augroup(follow_augroup, { clear = true })
+	api.nvim_create_autocmd("BufEnter", {
+		group = follow_augroup,
+		callback = vim.schedule_wrap(function()
+			local bufname = api.nvim_buf_get_name(0)
+			if utils.supported_filetype(bufname) then
+				M.navigate(vim.fs.normalize(bufname))
+			end
+		end),
+	})
+
+	M.navigate(filepath)
 	return true
 end
 
@@ -92,22 +245,19 @@ function M.pick()
 	local picker = require("livepreview.picker")
 
 	local pick_callback = function(pick_value)
-		local filepath = pick_value or nil
+		local filepath = M.resolve_filepath(pick_value)
 		if not filepath then
 			vim.notify("No file picked", vim.log.levels.INFO)
 			return
 		end
-		M.start(filepath, config.config.port)
+		if not M.start(filepath, config.config.port) then
+			return
+		end
 		vim.cmd.edit(filepath)
-		utils.open_browser(
-			string.format(
-				"http://%s:%d/%s",
-				config.config.address,
-				config.config.port,
-				config.config.dynamic_root and vim.fs.basename(filepath) or filepath
-			),
-			config.config.browser
-		)
+		local url = M.preview_url(filepath, config.config.port)
+		if url then
+			utils.open_browser(url, config.config.browser)
+		end
 	end
 
 	local picker_funcs = {}
@@ -140,6 +290,7 @@ function M.help()
 	)
 	print_help([[  :%s close - Stop live-preview server]])
 	print_help([[  :%s pick - Select a file to preview (using a picker like telescope.nvim, fzf-lua or mini.pick)]])
+	print_help([[  :%s follow [filepath] - Preview a file and navigate the browser as you enter other supported buffers.]])
 	print("  :che[ckhealth] livepreview - Check the health of the plugin")
 	print("  :h[elp] livepreview - Open the documentation")
 end

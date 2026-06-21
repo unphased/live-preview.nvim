@@ -29,39 +29,24 @@ api.nvim_create_user_command(cmd, function(cmd_opts)
 	local utils = require("livepreview.utils")
 	local lp = require("livepreview")
 	local Config = require("livepreview.config").config
-	local fs = vim.fs
 
 	local subcommand = cmd_opts.fargs[1]
 
 	if subcommand == "start" then
-		local filepath
-		if cmd_opts.fargs[2] ~= nil then
-			filepath = cmd_opts.fargs[2]
-			if not utils.is_absolute_path(filepath) then
-				filepath = fs.joinpath(vim.uv.cwd(), filepath)
-			end
-		else
-			filepath = api.nvim_buf_get_name(0)
-			if not utils.supported_filetype(filepath) then
-				filepath = utils.find_supported_buf()
-				if not filepath then
-					vim.notify(
-						"live-preview.nvim only supports markdown, asciidoc, svg and html files",
-						vim.log.levels.ERROR
-					)
-					return
-				end
-			end
+		local filepath = lp.resolve_filepath(cmd_opts.fargs[2])
+		if not filepath or not utils.supported_filetype(filepath) then
+			vim.notify("live-preview.nvim only supports markdown, asciidoc, svg and html files", vim.log.levels.ERROR)
+			return
 		end
-		filepath = fs.normalize(filepath)
 		if not lp.start(filepath, Config.port) then
 			return
 		end
 
-		local urlpath = Config.dynamic_root and fs.basename(filepath)
-			or utils.get_relative_path(filepath, fs.normalize(vim.uv.cwd() or ""))
-		local urlpath_encoded = urlpath and vim.uri_encode(urlpath)
-		local url = ("http://%s:%d/%s"):format(Config.address, Config.port, urlpath_encoded)
+		local url = lp.preview_url(filepath, Config.port)
+		if not url then
+			vim.notify("live-preview.nvim: file is outside the current working directory", vim.log.levels.ERROR)
+			return
+		end
 		print("live-preview.nvim: Opening browser at " .. url)
 		utils.open_browser(url, Config.browser)
 	elseif subcommand == "close" then
@@ -69,13 +54,30 @@ api.nvim_create_user_command(cmd, function(cmd_opts)
 		print("Live preview stopped")
 	elseif subcommand == "pick" then
 		lp.pick()
+	elseif subcommand == "follow" then
+		local filepath = lp.resolve_filepath(cmd_opts.fargs[2])
+		if not filepath or not utils.supported_filetype(filepath) then
+			vim.notify("live-preview.nvim only supports markdown, asciidoc, svg and html files", vim.log.levels.ERROR)
+			return
+		end
+		if not lp.follow(filepath, Config.port) then
+			return
+		end
+
+		local url = lp.preview_url(filepath, Config.port)
+		if not url then
+			vim.notify("live-preview.nvim: file is outside the current working directory", vim.log.levels.ERROR)
+			return
+		end
+		print("live-preview.nvim: Following buffers from " .. url)
+		utils.open_browser(url, Config.browser)
 	else
 		lp.help()
 	end
 end, {
 	nargs = "*",
 	complete = function(ArgLead, CmdLine, CursorPos)
-		local subcommands = { "start", "close", "pick", "-h", "--help" }
+		local subcommands = { "start", "close", "pick", "follow", "-h", "--help" }
 		local subcommand = vim.split(CmdLine, " ")[2]
 		if subcommand == "" then
 			return subcommands
@@ -84,7 +86,7 @@ end, {
 				return vim.startswith(subcmd, ArgLead)
 			end, subcommands)
 		else
-			if subcommand == "start" then
+			if subcommand == "start" or subcommand == "follow" then
 				return vim.fn.getcompletion(ArgLead, "file")
 			end
 		end

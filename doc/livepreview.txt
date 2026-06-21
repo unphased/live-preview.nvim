@@ -75,6 +75,12 @@ example >vim
 - To open a picker and select a file to preview, use the command: >vim
     :LivePreview pick
 <
+- To start follow mode, use the command: >vim
+    :LivePreview follow
+<
+This starts the preview and navigates the browser to each supported buffer as
+you enter it in Neovim. Follow mode stops when you run `:LivePreview close`.
+
 - To see document about each subcommand, use the command: >vim
     :LivePreview help
 <

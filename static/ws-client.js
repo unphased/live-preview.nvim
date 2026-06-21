@@ -61,6 +61,12 @@ async function connectWebSocket() {
 				socket.close();
 				return;
 			}
+		} else if (message.type === "navigate") {
+			console.log("Navigate message received");
+			const { path } = message;
+			if (typeof path === "string" && path.length > 0 && window.location.pathname !== path) {
+				window.location.href = path;
+			}
 		} else if (message.type === "update") {
 			console.log("Update message received");
 			let { filepath, content } = message;
@@ -131,4 +137,3 @@ window.onload = () => {
 		}
 	}, 1000);
 };
-
