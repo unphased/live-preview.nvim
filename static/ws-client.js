@@ -43,13 +43,18 @@ let livepreviewScrollFrame = null;
 let livepreviewScrollLastFrame = null;
 
 const LIVEPREVIEW_SCROLL_TIME_CONSTANT_MS = 100;
-const LIVEPREVIEW_SCROLL_THRESHOLD_PX = 0.5;
+const LIVEPREVIEW_SCROLL_THRESHOLD_PX = 0.1;
+
+const stopSmoothScrollTargeting = () => {
+	livepreviewScrollTarget = null;
+	livepreviewScrollFrame = null;
+	livepreviewScrollLastFrame = null;
+};
 
 const animateScroll = (timestamp) => {
 	const scrollElement = document.scrollingElement;
 	if (!scrollElement || livepreviewScrollTarget === null) {
-		livepreviewScrollFrame = null;
-		livepreviewScrollLastFrame = null;
+		stopSmoothScrollTargeting();
 		return;
 	}
 
@@ -62,8 +67,7 @@ const animateScroll = (timestamp) => {
 
 	if (Math.abs(delta) <= LIVEPREVIEW_SCROLL_THRESHOLD_PX) {
 		scrollElement.scrollTop = target;
-		livepreviewScrollFrame = null;
-		livepreviewScrollLastFrame = null;
+		stopSmoothScrollTargeting();
 		return;
 	}
 
@@ -84,6 +88,16 @@ const scrollToSourceLine = (line) => {
 		bounds.top +
 		bounds.height / 2 -
 		scrollElement.clientHeight / 2;
+
+	if (
+		livepreviewScrollFrame === null &&
+		Math.abs(livepreviewScrollTarget - scrollElement.scrollTop) <=
+			LIVEPREVIEW_SCROLL_THRESHOLD_PX
+	) {
+		scrollElement.scrollTop = livepreviewScrollTarget;
+		stopSmoothScrollTargeting();
+		return;
+	}
 
 	if (
 		livepreviewScrollFrame === null &&
