@@ -38,6 +38,7 @@ local html_template = function(body, stylesheet, script_tag)
 				.katex .array{border-collapse:collapse}
 				.katex .array>tbody>tr>td{padding:0}
 				.katex .delimsizing{font-family:KaTeX_Size1,KaTeX_Size2,KaTeX_Size3,KaTeX_Size4,serif}
+				.markdown-body code.language-mermaid br{display:inline}
 			</style>
 ]] .. script_tag .. [[
 			<script defer src='/live-preview.nvim/static/ws-client.js'></script>
