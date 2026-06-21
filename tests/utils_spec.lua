@@ -50,3 +50,17 @@ assert(
 	"should return true in Windows"
 )
 assert(not utils.is_absolute_path("lua/livepreview/utils.lua"), "should return false")
+
+------------------------------------------------------------------------------------------------------------------------------
+print()
+local template = require("livepreview.template")
+
+print("Test module livepreview.template")
+
+print()
+print("md2html()")
+local markdown_html = template.md2html("```mermaid\ngraph TD\n    A[First<br>Second]\n```")
+assert(
+	markdown_html:find(".markdown-body code.language-mermaid br{display:inline}", 1, true),
+	"should preserve Mermaid label line breaks hidden by GitHub Markdown CSS"
+)
