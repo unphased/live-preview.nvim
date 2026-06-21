@@ -66,6 +66,7 @@ end
 function Server:new(webroot)
 	self.server = uv.new_tcp()
 	self.webroot = webroot or uv.cwd()
+	self.port = nil
 	api.nvim_create_augroup("LivePreview", {
 		clear = true,
 	})
@@ -154,6 +155,7 @@ end
 --- 	- on_events (table<string, function(client:userdata, data:{filename: string, events: FsEvent}):void>)
 function Server:start(ip, port, opts)
 	self.server:bind(ip, port)
+	self.port = port
 	local on_events = opts.on_events
 	if on_events then
 		if on_events.LivePreviewDirChanged then

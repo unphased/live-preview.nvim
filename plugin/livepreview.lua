@@ -42,7 +42,7 @@ api.nvim_create_user_command(cmd, function(cmd_opts)
 			return
 		end
 
-		local url = lp.preview_url(filepath, Config.port)
+		local url = lp.preview_url(filepath)
 		if not url then
 			vim.notify("live-preview.nvim: file is outside the current working directory", vim.log.levels.ERROR)
 			return
@@ -64,7 +64,7 @@ api.nvim_create_user_command(cmd, function(cmd_opts)
 			return
 		end
 
-		local url = lp.preview_url(filepath, Config.port)
+		local url = lp.preview_url(filepath)
 		if not url then
 			vim.notify("live-preview.nvim: file is outside the current working directory", vim.log.levels.ERROR)
 			return

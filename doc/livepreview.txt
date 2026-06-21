@@ -36,7 +36,8 @@ Link to repo https://github.com/brianhuster/live-preview.nvim
 <
 
 Explaination of each option:
-- `port`: Port to run the live preview server on.
+- `port`: Starting port to run the live preview server on. If this port is
+  already in use, live-preview.nvim will try the next ports automatically.
 - `browser`: Terminal command to open the browser for live-previewing (eg.
   'firefox', 'flatpak run com.vivaldi.Vivaldi'). By default, it will use the
   system's default browser.

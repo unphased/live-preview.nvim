@@ -88,7 +88,8 @@ function M.preview_url(filepath, port)
 		return
 	end
 
-	return ("http://%s:%d%s"):format(config.config.address, port or config.config.port, path)
+	local preview_port = port or (M.serverObj and M.serverObj.port) or config.config.port
+	return ("http://%s:%d%s"):format(config.config.address, preview_port, path)
 end
 
 ---@param filepath string
@@ -100,6 +101,28 @@ local function can_serve(filepath)
 
 	local webroot = vim.fs.normalize(M.serverObj.webroot)
 	return not not utils.get_relative_path(filepath, webroot)
+end
+
+---@param port number
+---@return boolean
+local function port_is_used_by_other_process(port)
+	for _, process in ipairs(utils.processes_listening_on_port(port)) do
+		if process.pid ~= vim.uv.os_getpid() then
+			return true
+		end
+	end
+	return false
+end
+
+---@param port number
+---@return number?
+local function first_available_port(port)
+	local max_port = port + 100
+	for candidate = port, max_port do
+		if not port_is_used_by_other_process(candidate) then
+			return candidate
+		end
+	end
 end
 
 --- Navigate connected browsers to a preview file
@@ -134,31 +157,26 @@ end
 
 --- Start live-preview server
 ---@param filepath string: path to the file
----@param port number: port to run the server on
+---@param port number?: starting port to run the server on
 ---@param opts? {watch_dir?: boolean}
 ---@return boolean?
 function M.start(filepath, port, opts)
 	filepath = vim.fs.normalize(filepath)
 	opts = opts or {}
-	local processes = utils.processes_listening_on_port(port)
-	if #processes > 0 then
-		for _, process in ipairs(processes) do
-			if process.pid ~= vim.uv.os_getpid() then
-				-- local kill_confirm = vim.fn.confirm(
-				-- 	("Port %d is being listened by another process `%s` (PID %d). Kill it?"):format(port, process.name, process.pid),
-				-- 	"&Yes\n&No", 2)
-				-- if kill_confirm ~= 1 then return else utils.kill(process.pid) end
-				vim.notify(
-					("Port %d is being used by another process `%s` (PID %d). Run `:lua vim.uv.kill(%d)` to kill it or change the port with `:lua LivePreview.config.port = <new_port>`"):format(
-						port,
-						process.name,
-						process.pid,
-						process.pid
-					),
-					vim.log.levels.WARN
-				)
-			end
-		end
+	port = port or config.config.port
+	local actual_port = first_available_port(port)
+	if not actual_port then
+		vim.notify(
+			("live-preview.nvim: no available port found from %d to %d"):format(port, port + 100),
+			vim.log.levels.ERROR
+		)
+		return
+	end
+	if actual_port ~= port then
+		vim.notify(
+			("live-preview.nvim: port %d is in use; using port %d instead"):format(port, actual_port),
+			vim.log.levels.INFO
+		)
 	end
 	M.close()
 
@@ -192,7 +210,7 @@ function M.start(filepath, port, opts)
 		end
 	end
 
-	M.serverObj:start(config.config.address, port, {
+	M.serverObj:start(config.config.address, actual_port, {
 		on_events = on_events,
 	})
 
@@ -248,7 +266,7 @@ function M.pick()
 			return
 		end
 		vim.cmd.edit(filepath)
-		local url = M.preview_url(filepath, config.config.port)
+		local url = M.preview_url(filepath)
 		if url then
 			utils.open_browser(url, config.config.browser)
 		end
