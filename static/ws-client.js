@@ -43,7 +43,7 @@ let livepreviewScrollFrame = null;
 let livepreviewScrollLastFrame = null;
 
 const LIVEPREVIEW_SCROLL_TIME_CONSTANT_MS = 100;
-const LIVEPREVIEW_SCROLL_THRESHOLD_PX = 0.1;
+const LIVEPREVIEW_SCROLL_THRESHOLD_PX = 1;
 
 const stopSmoothScrollTargeting = () => {
 	livepreviewScrollTarget = null;
@@ -66,6 +66,11 @@ const animateScroll = (timestamp) => {
 	const delta = target - scrollElement.scrollTop;
 
 	if (Math.abs(delta) <= LIVEPREVIEW_SCROLL_THRESHOLD_PX) {
+		console.log("Smooth scroll target reached", {
+			target,
+			scrollTop: scrollElement.scrollTop,
+			delta,
+		});
 		scrollElement.scrollTop = target;
 		stopSmoothScrollTargeting();
 		return;
@@ -94,6 +99,11 @@ const scrollToSourceLine = (line) => {
 		Math.abs(livepreviewScrollTarget - scrollElement.scrollTop) <=
 			LIVEPREVIEW_SCROLL_THRESHOLD_PX
 	) {
+		console.log("Smooth scroll target already reached", {
+			target: livepreviewScrollTarget,
+			scrollTop: scrollElement.scrollTop,
+			delta: livepreviewScrollTarget - scrollElement.scrollTop,
+		});
 		scrollElement.scrollTop = livepreviewScrollTarget;
 		stopSmoothScrollTargeting();
 		return;
