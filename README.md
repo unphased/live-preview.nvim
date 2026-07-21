@@ -7,6 +7,7 @@ This fork extends live-preview.nvim with tighter Neovim-to-browser synchronizati
 * Smooth automatic scrolling that keeps the active block centered while allowing normal browser interaction to cancel the scroll.
 * Automatic port selection when the configured preview port is already in use.
 * Improved Mermaid rendering, including preserved line breaks inside diagram labels.
+* GitHub-style Markdown task lists with rendered checkboxes for `- [ ]` and `- [x]` items.
 
 The goal is to make the browser preview behave more like a live companion to the editor rather than a separate static page.
 
@@ -166,6 +167,7 @@ See [TODO](https://github.com/brianhuster/live-preview.nvim/milestone/1)
 * [KaTeX](https://github.com/KaTeX/KaTeX) for rendering math equations
 * [mermaid-js/mermaid](https://github.com/mermaid-js/mermaid) for rendering diagrams
 * [digitalmoksha/markdown-it-inject-linenumbers](https://github.com/digitalmoksha/markdown-it-inject-linenumbers) : A markdown-it plugin for injecting line numbers into html output
+* [revin/markdown-it-task-lists](https://github.com/revin/markdown-it-task-lists) for rendering GitHub-style Markdown task lists
 
 # Original plugin author
 

@@ -13,6 +13,7 @@ markdown:
     #!/usr/bin/env bash
     curl -sL https://cdn.jsdelivr.net/npm/markdown-it@14/dist/markdown-it.min.js > markdown/markdown-it.min.js
     curl -sL https://cdn.jsdelivr.net/npm/markdown-it-emoji@3/dist/markdown-it-emoji.min.js > markdown/markdown-it-emoji.min.js
+    curl -sL https://cdn.jsdelivr.net/npm/markdown-it-task-lists@2/dist/markdown-it-task-lists.js > markdown/markdown-it-task-lists.js
 
 highlight:
     #!/usr/bin/env bash

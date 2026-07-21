@@ -64,3 +64,7 @@ assert(
 	markdown_html:find(".markdown-body code.language-mermaid br{display:inline}", 1, true),
 	"should preserve Mermaid label line breaks hidden by GitHub Markdown CSS"
 )
+assert(
+	markdown_html:find("/live-preview.nvim/static/markdown/markdown-it-task-lists.js", 1, true),
+	"should load the Markdown task-list plugin"
+)
