@@ -1,16 +1,20 @@
+# Fork status
+
+This fork extends live-preview.nvim with tighter Neovim-to-browser synchronization and several usability fixes:
+
+* Follow mode with :LivePreview follow, which automatically switches the browser preview when you enter another supported buffer.
+* Cursor-aware Markdown synchronization, highlighting the rendered block corresponding to the current Neovim cursor position.
+* Smooth automatic scrolling that keeps the active block centered while allowing normal browser interaction to cancel the scroll.
+* Automatic port selection when the configured preview port is already in use.
+* Improved Mermaid rendering, including preserved line breaks inside diagram labels.
+
+The goal is to make the browser preview behave more like a live companion to the editor rather than a separate static page.
+
 # Introduction :wave:
 
 [![LuaRocks](https://img.shields.io/luarocks/v/brianhuster/live-preview.nvim?logo=lua&color=purple)](https://luarocks.org/modules/brianhuster/live-preview.nvim)
 
 live-preview.nvim is a plugin for Neovim that allows you to view [Markdown](https://en.wikipedia.org/wiki/Markdown), [HTML](https://en.wikipedia.org/wiki/HTML) (along with CSS, JavaScript), [AsciiDoc](https://asciidoc.org/) and [SVG](https://en.wikipedia.org/wiki/SVG) files in a web browser with live updates. No external dependencies or runtime like NodeJS or Python are required, since the backend is fully written in Lua and Neovim's built-in functions.
-
-# Fork status
-
-This fork is starting to diverge from upstream around editor-to-browser context sync. The current additions are:
-
-* `:LivePreview follow`, which keeps the browser preview on the supported buffer you enter in Neovim.
-* Cursor-aware Markdown preview sync, which highlights the rendered block that maps to the current Neovim cursor line.
-* Smoother browser scrolling to the active rendered block.
 
 # Features :sparkles:
  
