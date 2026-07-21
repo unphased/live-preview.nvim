@@ -132,16 +132,14 @@ function M.toggle_task(filepath, line, checked)
 	if baseline and baseline.filepath == vim.fs.normalize(filepath) then
 		local baseline_line = baseline.lines[line + 1]
 		local baseline_prefix, baseline_marker, baseline_suffix = parse_task_line(baseline_line or "")
-		if baseline_prefix == prefix
-			and baseline_suffix == suffix
-			and checked == (baseline_marker ~= "[ ]")
-		then
+		if baseline_prefix == prefix and baseline_suffix == suffix and checked == (baseline_marker ~= "[ ]") then
 			replacement = baseline_line
 		end
 	end
 
 	api.nvim_buf_set_lines(bufnr, line, line + 1, false, { replacement })
-	if baseline
+	if
+		baseline
 		and baseline.filepath == vim.fs.normalize(filepath)
 		and vim.deep_equal(baseline.lines, buffer_lines(bufnr))
 		and vim.deep_equal(baseline.options, buffer_file_options(bufnr))
