@@ -11,6 +11,176 @@ M.serverObj = nil
 M.following = false
 
 local follow_augroup = "LivePreviewFollow"
+local task_clean_baselines = {}
+local task_state_augroup = api.nvim_create_augroup("LivePreviewTaskState", { clear = true })
+
+api.nvim_create_autocmd("BufWipeout", {
+	group = task_state_augroup,
+	callback = function(event)
+		task_clean_baselines[event.buf] = nil
+	end,
+})
+
+---@param bufnr number
+---@return string[]
+local function buffer_lines(bufnr)
+	return api.nvim_buf_get_lines(bufnr, 0, -1, false)
+end
+
+---@param bufnr number
+---@return table
+local function buffer_file_options(bufnr)
+	return {
+		bomb = vim.bo[bufnr].bomb,
+		endofline = vim.bo[bufnr].endofline,
+		fileencoding = vim.bo[bufnr].fileencoding,
+		fileformat = vim.bo[bufnr].fileformat,
+	}
+end
+
+---@param text string
+---@return string? prefix
+---@return string? marker
+---@return string? suffix
+local function parse_task_line(text)
+	local prefix, marker, suffix = text:match("^(%s*[%-%+%*]%s+)(%[[ xX]%])(.*)$")
+	if not prefix then
+		prefix, marker, suffix = text:match("^(%s*%d+[%.%)]%s+)(%[[ xX]%])(.*)$")
+	end
+	return prefix, marker, suffix
+end
+
+---@param filepath string
+---@return number?
+local function find_loaded_buffer(filepath)
+	local direct_match = vim.fn.bufnr(filepath)
+	if direct_match >= 0 and api.nvim_buf_is_loaded(direct_match) then
+		return direct_match
+	end
+
+	filepath = vim.fs.normalize(filepath)
+	for _, bufnr in ipairs(api.nvim_list_bufs()) do
+		if api.nvim_buf_is_loaded(bufnr) and vim.fs.normalize(api.nvim_buf_get_name(bufnr)) == filepath then
+			return bufnr
+		end
+	end
+end
+
+---@param path string
+---@return string?
+local function filepath_for_preview_path(path)
+	path = vim.uri_decode(path)
+	for _, bufnr in ipairs(api.nvim_list_bufs()) do
+		local filepath = api.nvim_buf_get_name(bufnr)
+		if api.nvim_buf_is_loaded(bufnr) and utils.supported_filetype(filepath) == "markdown" then
+			local preview_path = M.preview_path(filepath)
+			if preview_path and vim.uri_decode(preview_path) == path then
+				return filepath
+			end
+		end
+	end
+end
+
+---@param client uv_tcp_t
+---@param bufnr number
+local function send_buffer_update(client, bufnr)
+	if client:is_closing() then
+		return
+	end
+	server.websocket.send_json(client, {
+		filepath = api.nvim_buf_get_name(bufnr),
+		type = "update",
+		content = table.concat(buffer_lines(bufnr), "\n"),
+	})
+end
+
+--- Toggle a Markdown task marker in a loaded buffer.
+---@param filepath string
+---@param line number zero-based source line
+---@param checked boolean
+---@return boolean
+---@return number? bufnr
+function M.toggle_task(filepath, line, checked)
+	if utils.supported_filetype(filepath) ~= "markdown" or line < 0 or line % 1 ~= 0 then
+		return false
+	end
+
+	local bufnr = find_loaded_buffer(filepath)
+	if not bufnr or line >= api.nvim_buf_line_count(bufnr) then
+		return false
+	end
+
+	local current = api.nvim_buf_get_lines(bufnr, line, line + 1, false)[1]
+	local prefix, marker, suffix = parse_task_line(current)
+	if not prefix then
+		return false
+	end
+	if checked == (marker ~= "[ ]") then
+		return true, bufnr
+	end
+
+	if not vim.bo[bufnr].modified then
+		task_clean_baselines[bufnr] = {
+			filepath = vim.fs.normalize(filepath),
+			lines = buffer_lines(bufnr),
+			options = buffer_file_options(bufnr),
+		}
+	end
+
+	local baseline = task_clean_baselines[bufnr]
+	local replacement = prefix .. (checked and "[x]" or "[ ]") .. suffix
+	if baseline and baseline.filepath == vim.fs.normalize(filepath) then
+		local baseline_line = baseline.lines[line + 1]
+		local baseline_prefix, baseline_marker, baseline_suffix = parse_task_line(baseline_line or "")
+		if baseline_prefix == prefix
+			and baseline_suffix == suffix
+			and checked == (baseline_marker ~= "[ ]")
+		then
+			replacement = baseline_line
+		end
+	end
+
+	api.nvim_buf_set_lines(bufnr, line, line + 1, false, { replacement })
+	if baseline
+		and baseline.filepath == vim.fs.normalize(filepath)
+		and vim.deep_equal(baseline.lines, buffer_lines(bufnr))
+		and vim.deep_equal(baseline.options, buffer_file_options(bufnr))
+	then
+		vim.bo[bufnr].modified = false
+	end
+
+	return true, bufnr
+end
+
+---@param client uv_tcp_t
+---@param message table
+local function on_client_message(client, message)
+	if message.type ~= "task_toggle" then
+		return
+	end
+
+	local valid = type(message.path) == "string"
+		and type(message.line) == "number"
+		and type(message.checked) == "boolean"
+	local filepath = valid and filepath_for_preview_path(message.path) or nil
+	local ok, bufnr = false, nil
+	if filepath then
+		ok, bufnr = M.toggle_task(filepath, message.line, message.checked)
+	end
+
+	if not client:is_closing() then
+		server.websocket.send_json(client, {
+			type = "task_toggle_result",
+			id = message.id,
+			ok = ok,
+		})
+	end
+	if ok and bufnr then
+		for _, connected_client in ipairs(server.connecting_clients) do
+			send_buffer_update(connected_client, bufnr)
+		end
+	end
+end
 
 --- Stop following the active buffer
 function M.disable_follow()
@@ -182,16 +352,12 @@ function M.start(filepath, port, opts)
 
 	M.serverObj = server.Server:new(config.config.dynamic_root and vim.fs.dirname(filepath) or nil)
 	local function onTextChanged(client)
-		local bufname = vim.api.nvim_buf_get_name(0)
+		local bufnr = api.nvim_get_current_buf()
+		local bufname = api.nvim_buf_get_name(bufnr)
 		if not utils.supported_filetype(bufname) or utils.supported_filetype(bufname) == "html" then
 			return
 		end
-		local message = {
-			filepath = bufname,
-			type = "update",
-			content = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n"),
-		}
-		server.websocket.send_json(client, message)
+		send_buffer_update(client, bufnr)
 	end
 
 	local on_events = {
@@ -212,6 +378,7 @@ function M.start(filepath, port, opts)
 
 	M.serverObj:start(config.config.address, actual_port, {
 		on_events = on_events,
+		on_message = on_client_message,
 	})
 
 	return true

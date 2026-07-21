@@ -68,3 +68,66 @@ assert(
 	markdown_html:find("/live-preview.nvim/static/markdown/markdown-it-task-lists.js", 1, true),
 	"should load the Markdown task-list plugin"
 )
+assert(
+	vim.uv.fs_stat(vim.fs.joinpath(plugin_path, "static", "markdown", "markdown-it-task-lists.js")),
+	"should include the Markdown task-list browser asset"
+)
+
+print()
+print("toggle_task()")
+local livepreview = require("livepreview")
+local task_bufnr = vim.api.nvim_create_buf(true, false)
+local task_filepath = vim.fs.joinpath(vim.uv.os_tmpdir(), ("live-preview-task-%d.md"):format(vim.uv.os_getpid()))
+vim.api.nvim_buf_set_name(task_bufnr, task_filepath)
+vim.api.nvim_buf_set_lines(task_bufnr, 0, -1, false, {
+	"# Tasks",
+	"- [ ] unfinished",
+	"1. [X] finished",
+	"Plain [ ] text",
+})
+vim.bo[task_bufnr].modified = false
+
+assert(livepreview.toggle_task(task_filepath, 1, true), "should check a Markdown task")
+assert(vim.api.nvim_buf_get_lines(task_bufnr, 1, 2, false)[1] == "- [x] unfinished", "should update the marker")
+assert(vim.bo[task_bufnr].modified, "should mark the changed buffer as modified")
+assert(livepreview.toggle_task(task_filepath, 1, false), "should uncheck a Markdown task")
+assert(not vim.bo[task_bufnr].modified, "should restore the clean state after toggling back")
+
+vim.api.nvim_buf_set_lines(task_bufnr, 3, 4, false, { "Unrelated edit" })
+assert(livepreview.toggle_task(task_filepath, 2, false), "should toggle an ordered-list task")
+assert(livepreview.toggle_task(task_filepath, 2, true), "should toggle the ordered-list task back")
+assert(vim.api.nvim_buf_get_lines(task_bufnr, 2, 3, false)[1] == "1. [X] finished", "should restore exact marker text")
+assert(vim.bo[task_bufnr].modified, "should preserve unrelated buffer modifications")
+assert(not livepreview.toggle_task(task_filepath, 3, true), "should reject a non-task source line")
+vim.api.nvim_buf_delete(task_bufnr, { force = true })
+
+print()
+print("websocket.listen()")
+local websocket = require("livepreview.server.websocket")
+local read_callback
+local received_message
+local fake_client = {
+	read_start = function(_, callback)
+		read_callback = callback
+	end,
+	read_stop = function() end,
+	is_closing = function()
+		return false
+	end,
+	close = function() end,
+}
+websocket.listen(fake_client, function(message)
+	received_message = message
+end)
+
+local payload = '{"type":"task_toggle"}'
+local mask = { 11, 22, 33, 44 }
+local masked = {}
+for index = 1, #payload do
+	masked[index] = string.char(bit.bxor(payload:byte(index), mask[(index - 1) % 4 + 1]))
+end
+local frame = string.char(0x81, 0x80 + #payload, unpack(mask)) .. table.concat(masked)
+read_callback(nil, frame:sub(1, 5))
+assert(received_message == nil, "should buffer partial WebSocket frames")
+read_callback(nil, frame:sub(6))
+assert(received_message == payload, "should decode masked browser WebSocket frames")

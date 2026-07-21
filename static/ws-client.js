@@ -1,6 +1,7 @@
 const wsUrl = getWebSocketUrl();
-let socket = new WebSocket(wsUrl);
-let connected = true;
+let socket = null;
+let connected = false;
+let hasConnected = false;
 
 function getWebSocketUrl() {
 	const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -41,6 +42,8 @@ let livepreviewLastCursor = null;
 let livepreviewScrollTarget = null;
 let livepreviewScrollFrame = null;
 let livepreviewScrollLastFrame = null;
+let livepreviewTaskRequestId = 0;
+const livepreviewPendingTaskToggles = new Map();
 
 const LIVEPREVIEW_SCROLL_TIME_CONSTANT_MS = 100;
 const LIVEPREVIEW_SCROLL_THRESHOLD_PX = 1;
@@ -191,10 +194,11 @@ async function connectWebSocket() {
 	socket = new WebSocket(wsUrl);
 
 	socket.onopen = () => {
-		if (!connected) {
+		if (hasConnected && !connected) {
 			window.location.reload();
 		}
 		connected = true;
+		hasConnected = true;
 		console.log("Connected to server");
 		console.log("connected: ", connected);
 		livepreview_reload = 0;
@@ -245,6 +249,14 @@ async function connectWebSocket() {
 					}
 				}
 			}
+		} else if (message.type === "task_toggle_result") {
+			const pending = livepreviewPendingTaskToggles.get(message.id);
+			if (pending) {
+				if (!message.ok && pending.checkbox.isConnected) {
+					pending.checkbox.checked = pending.previousChecked;
+				}
+				livepreviewPendingTaskToggles.delete(message.id);
+			}
 		} else if (message.type === "scroll") {
 			console.log("Scroll message received");
 			const { filepath, cursor } = message;
@@ -269,6 +281,32 @@ async function connectWebSocket() {
 		console.error("WebSocket error:", error);
 	};
 }
+
+document.addEventListener("change", (event) => {
+	const checkbox = event.target;
+	if (!(checkbox instanceof HTMLInputElement) ||
+		!checkbox.classList.contains("task-list-item-checkbox")) return;
+
+	const sourceItem = checkbox.closest("[data-source-line]");
+	const line = Number(sourceItem?.getAttribute("data-source-line"));
+	if (!Number.isInteger(line) || !socket || socket.readyState !== WebSocket.OPEN) {
+		checkbox.checked = !checkbox.checked;
+		return;
+	}
+
+	const id = ++livepreviewTaskRequestId;
+	livepreviewPendingTaskToggles.set(id, {
+		checkbox,
+		previousChecked: !checkbox.checked,
+	});
+	socket.send(JSON.stringify({
+		type: "task_toggle",
+		id,
+		path: window.location.pathname,
+		line,
+		checked: checkbox.checked,
+	}));
+});
 
 window.onload = () => {
 	connectWebSocket();

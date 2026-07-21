@@ -32,6 +32,7 @@ local operating_system = uv.os_uname().sysname
 
 ---@class ServerStartOptions
 ---@field on_events? table<string, function(client:userdata):void>
+---@field on_message? fun(client: uv_tcp_t, message: table)
 
 --- Send a scroll message to a WebSocket client
 --- The message is a table with the following
@@ -158,6 +159,7 @@ function Server:start(ip, port, opts)
 	self.server:bind(ip, port)
 	self.port = port
 	local on_events = opts.on_events
+	local on_message = opts.on_message
 	if on_events then
 		if on_events.LivePreviewDirChanged then
 			self:watch_dir()
@@ -187,32 +189,50 @@ function Server:start(ip, port, opts)
 		end
 	end
 
+	local function remove_client(target)
+		for index, client in ipairs(M.connecting_clients) do
+			if client == target then
+				table.remove(M.connecting_clients, index)
+				return
+			end
+		end
+	end
+
 	self.server:listen(128, function(err)
+		if err then
+			vim.notify(err, vim.log.levels.ERROR)
+			return
+		end
 		--- Connect to client
 		local client = uv.new_tcp()
 		self.server:accept(client)
 		handler.client(client, function(error, request)
 			if error or not request then
 				vim.notify(error and error, vim.log.levels.ERROR)
-				for i, c in ipairs(M.connecting_clients) do
-					if c == client then
-						client:close()
-						table.remove(M.connecting_clients, i)
-					end
-				end
+				remove_client(client)
 				return
 			else
 				local req_info = handler.request(client, request)
 				if req_info then
-					local path = req_info.path
-					local if_none_match = req_info.if_none_match
-					local accept = req_info.accept
-					local file_path = self:routes(path)
-					handler.serve_file(client, file_path, if_none_match, accept)
+					if req_info.websocket then
+						table.insert(M.connecting_clients, client)
+						websocket.listen(client, function(payload)
+							local ok, message = pcall(vim.json.decode, payload)
+							if ok and type(message) == "table" and on_message then
+								vim.schedule(function()
+									on_message(client, message)
+								end)
+							end
+						end, function()
+							remove_client(client)
+						end)
+					else
+						local file_path = self:routes(req_info.path)
+						handler.serve_file(client, file_path, req_info.if_none_match, req_info.accept)
+					end
 				end
 			end
 		end)
-		table.insert(M.connecting_clients, client)
 	end)
 end
 
@@ -226,6 +246,14 @@ function Server:stop(callback)
 				callback()
 			end
 		end)
+	end
+	local clients = M.connecting_clients
+	M.connecting_clients = {}
+	for _, client in ipairs(clients) do
+		client:read_stop()
+		if not client:is_closing() then
+			client:close()
+		end
 	end
 	if self._watcher then
 		self._watcher:close()

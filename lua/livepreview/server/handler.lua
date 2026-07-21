@@ -47,11 +47,11 @@ end
 --- If the request is a websocket upgrade request, it will call websocket handshake
 --- Otherwise, if it is a GET request, return the path from it
 ---@param request string: HTTP request
----@return {path: string, if_none_match: string, accept: string} | nil : path to the file and If-None-Match header
+---@return {websocket?: boolean, path?: string, if_none_match?: string, accept?: string}?
 function M.request(client, request)
 	if request:match("Upgrade: websocket") then
 		websocket.handshake(client, request)
-		return
+		return { websocket = true }
 	end
 	local path = request:match("GET ([^%s]+) HTTP/1.1")
 	local path_decoded = path and vim.uri_decode(path) or "/"

@@ -7,7 +7,7 @@ This fork extends live-preview.nvim with tighter Neovim-to-browser synchronizati
 * Smooth automatic scrolling that keeps the active block centered while allowing normal browser interaction to cancel the scroll.
 * Automatic port selection when the configured preview port is already in use.
 * Improved Mermaid rendering, including preserved line breaks inside diagram labels.
-* GitHub-style Markdown task lists with rendered checkboxes for `- [ ]` and `- [x]` items.
+* Interactive GitHub-style Markdown task lists whose browser checkboxes update `- [ ]` and `- [x]` markers in the corresponding Neovim buffer.
 
 The goal is to make the browser preview behave more like a live companion to the editor rather than a separate static page.
 
